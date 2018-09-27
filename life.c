@@ -258,6 +258,7 @@ int main(int argc, char* argv[]) {
 				if(currentCol > longestCol){
 					longestCol = currentCol;
 				}
+        break;
 			}
 
 		}
