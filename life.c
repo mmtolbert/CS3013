@@ -29,6 +29,88 @@ pthread_t threadArray[MAXTHREAD + 1];
 sem_t sendSem[MAXTHREAD+1];
 sem_t receiveSem[MAXTHREAD+1];
 int **gridA,**gridB,**gridC; // declare generations so they can be seen
+int gridToPlay;
+
+int terminationCondition(int** currentArray, int** futureArray, int** oldArray, int rows, int columns){
+
+	int size = rows * columns; // Will be used to compare total area to the similarities between generations
+	int stillLifeCounter = 0;
+	int oscillationCounter = 0;
+	// Loop through the entire size of the grid and compare current to future and previous
+	for(int i = 0; i < rows; i++){
+		// loop invariant here is that i is less than the number of rows
+		for(int j = 0; j < columns; j++){
+			// loop invariant here is that j is less than the number of columns
+			if(currentArray[i][j] == futureArray[i][j]){
+				stillLifeCounter++;
+			}
+			if(oldArray[i][j] == futureArray[i][j]) {
+				oscillationCounter++;
+			}
+		}
+	}
+	if(size == stillLifeCounter) { // check to see if all values from current board and future board are the same
+		return 1; // termination value for still life
+	}
+	if(size == oscillationCounter) { // check to see if all values from the prior board and future board are the same
+		return 2; // termination value for oscillation
+	} else {
+		return 0; // if no termination conditions, continue
+	}
+
+}
+
+int** playOneGen(int** currentArray, char** newArray, int rows, int columns) {
+
+	// Check the currentArray for growth or death conditions and apply to newArray
+	for(int i = 0; i < rows; i++) {
+		// loop invariant here is that i is less than the number of rows
+		for(int j = 0; j < columns; j++) {
+			// loop invariant here is that j is less than the number of columns
+			// Inside the above loop we are at an individual point in currentArray
+			int currentCellAlive = 0; // by default our current cell is dead or 0, 1 if alive
+			if(currentArray[i][j] == 'x') {
+				currentCellAlive = 1;
+			}
+			int numNeighbors = 0; // Keep track of how many neighbors
+			// The below loop returns a number that is equivalent to the number of cells surrounding the current cell
+			// This number is then used to calculate life, death or survival for the next round
+			for(int checkR = -1; checkR <= 1; checkR++) { // Check one row above, the current row, and one row below
+				// the loop invariant here makes sure that we check the row above, the current row, and the row below
+				for(int checkC = -1; checkC <= 1; checkC++){ // Check the values of the previous column, the current column, and the next column
+					// the loop invariant here makes sure we check each column before, equal to, and after the current column of the point
+					// first make sure check point is in bounds
+					if((i + checkR < 0) || (i + checkR == rows) || (j + checkC < 0) || (j + checkC == columns) || (checkR == 0 && checkC == 0)) {
+						// Loop does nothing in these conditions since they are out of bounds and thus ignored
+					}
+					else { // if else we are in bounds and can safely check
+						if(currentArray[i + checkR][j + checkC] == 'x'){ // if there is an 'x' in one of the neighboring spots we have a live neighbor
+							numNeighbors++; // add a neighbor
+						}
+					}
+				}
+			}
+			// now that we know how many alive neighbors, determine what to do
+			// is the cell alive?
+			if(currentCellAlive == 1){ // check to see if current cell is alive so we check for survival or death
+				if(numNeighbors == 2 || numNeighbors == 3) {
+					// In this case the current cell survives
+					newArray[i][j] = 'x'; // Case of cell surviving to next generation
+				} else {
+					newArray[i][j] = ' '; // Case of cell dying from loneliness or over-population
+				}
+			} else { // Cases for if cell is dead, we check if it stays as is or if it births
+				if(numNeighbors == 3) {
+					newArray[i][j] = 'x'; // Circumstance of growth when there are exactly 3 living neighbors, but cell itself is dead
+				}
+				else {
+					newArray[i][j] = ' '; // This is the default case of no growth when cell is already dead
+				}
+			}
+		}
+	}
+	return newArray; // return the next generation
+}
 
 // make grid function
 int** makeGrid(int rows, int columns) {
@@ -120,6 +202,99 @@ void *worker_function(void *argument) {
       // thread 0 wants us to play our rows
       //printf("parent wants me to play @%d\n", *threadID);
       // send a message to parent
+      // we need to cycle through our generations in an order that makes sense
+      // alternate gridToPlay in order to best keep track of changing conditions that could cause termination
+      if(gridToPlay == 3) {
+        gridA = playOneGen(gridC, gridA, rows, columns); // Update grid A using playOneGen
+        // Need to check for end conditions
+        gridToPlay = 1; // Reset the counter for the next loop
+        if(doPrint == 1){ // Check if user elected to print each generation
+          printf("Generation %d\n", i + 1); // If they did, print the generation
+          printGrid(gridA, rows, columns);
+        }
+
+        // Check for termination Conditions
+        int terminates = terminationCondition(gridC, gridA, gridB, rows, columns);
+        if(terminates == 1){ // 1 means steady state found
+          if(doPrint == 0){ // Check to see if grind is already printed
+            printf("Generation %d\n", i + 1);
+            printGrid(gridA, rows, columns);
+          }
+          printf("Steady State Reached. Final Generation Above\n");
+          return EXIT_FAILURE;
+
+
+          // return ENDGAME condition to parent in message
+
+
+
+
+        }
+        else if(terminates == 2) { // two means oscillation found
+          if(doPrint == 0){ // Check to see if grind is already printed
+            printf("Generation %d\n", i + 1);
+            printGrid(gridA, rows, columns);
+          }
+          printf("Oscillation Found. Final Generation Above\n");
+          return EXIT_FAILURE;
+        }
+      }
+      else if (gridToPlay == 2) {
+        gridC = playOneGen(gridB, gridC, rows, columns);
+        gridToPlay++; // update the grid for next loops
+        if(doPrint == 1){ // Check if user elected to print each generation
+          printf("Generation %d\n", i + 1); // If they did, print the generation
+          printGrid(gridC, rows, columns);
+        }
+
+        // Check for termination Conditions
+        int terminates = terminationCondition(gridB, gridC, gridA, rows, columns);
+        if(terminates == 1){ // 1 means steady state found
+          if(doPrint == 0){ // Check to see if grind is already printed
+            printf("Generation %d\n", i + 1);
+            printGrid(gridC, rows, columns);
+          }
+          printf("Steady State Reached. Final Generation Above\n");
+          return EXIT_FAILURE;
+        }
+        else if(terminates == 2) { // two means oscillation found
+          if(doPrint == 0){ // Check to see if grind is already printed
+            printf("Generation %d\n", i + 1);
+            printGrid(gridC, rows, columns);
+          }
+          printf("Oscillation Found. Final Generation Above\n");
+          return EXIT_FAILURE;
+        }
+      }
+      else if (gridToPlay == 1) {
+        gridB = playOneGen(gridA, gridB, rows, columns);
+        gridToPlay++; // update the grid for next loop
+        if(doPrint == 1){ // Check if user elected to print each generation
+          printf("Generation %d\n", i + 1); // If they did, print the generation
+          printGrid(gridB, rows, columns);
+        }
+
+        // Check for termination Conditions
+        int terminates = terminationCondition(gridA, gridB, gridC, rows, columns);
+        if(terminates == 1){ // 1 means steady state found
+          if(doPrint == 0){ // Check to see if grind is already printed
+            printf("Generation %d\n", i + 1);
+            printGrid(gridB, rows, columns);
+          }
+          printf("Steady State Reached. Final Generation Above\n");
+          return EXIT_FAILURE;
+        }
+        else if(terminates == 2) { // two means oscillation found
+          if(doPrint == 0){ // Check to see if grind is already printed
+            printf("Generation %d\n", i + 1);
+            printGrid(gridB, rows, columns);
+          }
+          printf("Oscillation Found. Final Generation Above\n");
+          return EXIT_FAILURE;
+        }
+      }
+
+    }
       struct msg *msgToSend = malloc(4 * sizeof(int));
       msgToSend->iSender = *threadID;
       msgToSend->type = GENDONE;
@@ -271,6 +446,7 @@ int main(int argc, char* argv[]) {
   int previousMinRow = 1; // account for value1
 
   gridB = makeGrid(longestRow, longestCol); // allocate gridB
+  gridToPlay = 2;
 
   // copy gridA into gridB because gridB is the exact size of the input
   for(int i = 0; i < longestRow; i++) {
@@ -329,6 +505,11 @@ int main(int argc, char* argv[]) {
 
 	for(int i = 0; i < gens; i++) { // make sure we play the correct number of addresses
 
+    if(doPause == 1){ // Pause each time and wait for user to hit enter if doPause is active
+			printf("Please hit ENTER to continue: \n");
+			getchar(); // wait for user to hit enter
+		}
+
     /*************** SEND MESSAGES TO WORKER THREADS ***************/
     for(int i =1; i <= numThreads; i++) {
       // send a message to child
@@ -372,6 +553,23 @@ int main(int argc, char* argv[]) {
       printGrid(gridB, longestRow, longestCol);
     }
   }
+
+  if(doPrint == 0){
+		if(gridToPlay == 3) { // Checks to determine the proper generation to display
+			printf("\nThe final grid ended naturally after %d generations is\n", gens);
+			printGrid(gridC, rows, columns);
+		}
+		else if (gridToPlay == 2) { // Checks to determine the proper generation to display
+			printf("\nThe final grid ended naturally after %d generations is\n", gens);
+			printGrid(gridB, rows, columns);
+		}
+		else if (gridToPlay == 1) { // Checks to determine the proper generation to display
+			printf("\nThe final grid ended naturally after %d generations is\n", gens);
+			printGrid(gridA, rows, columns);
+		}
+	} else {
+		printf("\nThe final grid ended naturally after %d generations is\n", gens);
+	}
   //printf("not in loop yet\n");
 
   for(int i =0; i < numThreads; i++) {
