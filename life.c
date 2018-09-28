@@ -511,7 +511,8 @@ int main(int argc, char* argv[]) {
     int grandTotal = 0; // total of all sums
     // loop through and receive messages
     int numAllDone = 0; // reset every generation, need all threads to say alldone
-    int terminates; // why did we terminate?
+    int terminates = 0; // why did we terminate?
+    int foundOscillation = 0; // tick to one if oscillation found since most will report steady state
     for(int i = 1; i <= numThreads; i++) {
       //printf("top of loop\n");
       struct msg localMail; // mail to receive from box
@@ -521,7 +522,10 @@ int main(int argc, char* argv[]) {
       // Check if children return all done specifying an end condition was found
       if(localMail.type == ALLDONE) {
         numAllDone++; // add it up
-        int terminates = localMail.value1; // set value of terminates
+        terminates = localMail.value1; // set value of terminates
+	if(terminates == 2) {
+		foundOscillation = 1; // update oscillation counter
+	}
         // check if all threads say all done as the whole board needs to be oscillating or stagnant
         // the reason i chose longestRow here is because if a user specifies
         // more threads than rows of the input than the program is expecting
@@ -540,10 +544,13 @@ int main(int argc, char* argv[]) {
             msgToSend->type = STOP;
             SendMsg(i, msgToSend); // send the message
           }
+	  if(foundOscillation) {
+		terminates == foundOscillation;
+	  }
 
           i == gens; // set so loop exits
           // game is done for some reason
-          if(terminates == 1) {
+          if(foundOscillation == 0) {
             //FOLLOW ALL PARTS OF THE END OF FUNCTION BUT INTERNALLY BECAUSE IM TOO LAZY TO MAKE ANOTHER FUNCTION
             // steady state found condition
             if(gridToPlay == 3) {
@@ -571,7 +578,7 @@ int main(int argc, char* argv[]) {
             }
             return 0;
           }
-          else if(terminates == 2){
+          else if(foundOscillation == 1){
             //FOLLOW ALL PARTS OF THE END OF FUNCTION BUT INTERNALLY BECAUSE IM TOO LAZY TO MAKE ANOTHER FUNCTION
             if(gridToPlay == 3) {
               gridToPlay = 1; // Reset the counter for the next loop
@@ -632,19 +639,19 @@ int main(int argc, char* argv[]) {
   if(doPrint == 0){
     // print grid
     if(gridToPlay == 3) { // Checks to determine the proper generation to display
-      printf("\nThe final grid ended naturally after %d generations is\n", gens);
+      printf("\nThe final grid ended naturally after %d generations is above\n", gens);
       printGrid(gridC, longestRow, longestCol);
     }
     else if (gridToPlay == 2) { // Checks to determine the proper generation to display
-      printf("\nThe final grid ended naturally after %d generations is\n", gens);
+      printf("\nThe final grid ended naturally after %d generations is above\n", gens);
       printGrid(gridB, longestRow, longestCol);
     }
     else if (gridToPlay == 1) { // Checks to determine the proper generation to display
-      printf("\nThe final grid ended naturally after %d generations is\n", gens);
+      printf("\nThe final grid ended naturally after %d generations is above\n", gens);
       printGrid(gridA, longestRow, longestCol);
     }
 	} else {
-		printf("\nThe final grid ended naturally after %d generations is\n", gens);
+		printf("\nThe final grid ended naturally after %d generations is above\n", gens);
 	}
   //printf("not in loop yet\n");
 
